@@ -1,4 +1,4 @@
-module github.com/konsultin/routek
+module github.com/go-konsultin/routek
 
 go 1.23.0
 
