@@ -200,8 +200,8 @@ func buildHandler(target any, methodName string, responder *Responder) (fasthttp
 		return func(ctx *fasthttp.RequestCtx) {
 			if res := method.Call([]reflect.Value{reflect.ValueOf(ctx)}); len(res) == 1 && !res[0].IsNil() {
 				err := res[0].Interface().(error)
-				status := extractHTTPStatus(err)
-				responder.Error(ctx, status, CodeInternalError, "internal server error", err)
+				status, code, message := extractErrorInfo(err)
+				responder.Error(ctx, status, code, message, err)
 			}
 		}, nil
 	case 2:
@@ -214,8 +214,8 @@ func buildHandler(target any, methodName string, responder *Responder) (fasthttp
 			data := res[0].Interface()
 			if !res[1].IsNil() {
 				err := res[1].Interface().(error)
-				status := extractHTTPStatus(err)
-				responder.Error(ctx, status, CodeInternalError, "internal server error", err)
+				status, code, message := extractErrorInfo(err)
+				responder.Error(ctx, status, code, message, err)
 				return
 			}
 
@@ -226,14 +226,18 @@ func buildHandler(target any, methodName string, responder *Responder) (fasthttp
 	}
 }
 
-// extractHTTPStatus extracts HTTP status code from errk.Error metadata.
-// Returns fasthttp.StatusInternalServerError if not found.
-func extractHTTPStatus(err error) int {
+// extractErrorInfo extracts HTTP status, code, and message from errk.Error.
+// Returns defaults if not an errk.Error.
+func extractErrorInfo(err error) (int, Code, string) {
 	var errkErr *errk.Error
 	if errors.As(err, &errkErr) {
-		if status, ok := errkErr.Metadata()["http_status"].(int); ok {
-			return status
+		status := fasthttp.StatusInternalServerError
+		if s, ok := errkErr.Metadata()["http_status"].(int); ok {
+			status = s
 		}
+		code := Code(errkErr.Code())
+		message := errkErr.Message()
+		return status, code, message
 	}
-	return fasthttp.StatusInternalServerError
+	return fasthttp.StatusInternalServerError, CodeInternalError, "internal server error"
 }
